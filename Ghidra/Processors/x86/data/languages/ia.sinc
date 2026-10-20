@@ -468,7 +468,10 @@ define context contextreg
   evexBType=(47,47)     # Used for Disp8*N (see table 2-34 in 325462-sdm-vol-1-2abcd-3abcd-4.pdf)
   evexTType=(44,47)     # Used for Disp8*N (see table 2-35 in 325462-sdm-vol-1-2abcd-3abcd-4.pdf)
   evexDisp8=(44,46)
-  reservedHigh=(48,63)  # reserved for future use
+  # Real mode only: the CS value code at this address runs with, set by the loader or by the user
+  # over each code segment. 0 means not known; near relative targets then assume a CS whose base
+  # is the start of the instruction's 64K linear page.
+  realModeCS=(48,63) noflow
 
 ;
 
@@ -1147,8 +1150,16 @@ Mem: segWide^addr32 is $(LONGMODE_OFF) & addrsize=1 & segWide; addr32       		{ 
 @endif
 Mem: segWide^addr32 is $(LONGMODE_OFF) & addrsize=1 & segWide & highseg=1; addr32 	{ tmp:$(SIZE) = segWide + zext(addr32); export tmp; }
 
+# A near relative transfer keeps CS and wraps IP at 64K: the target is CS:((IP after + disp) & 0xFFFF).
+# In real mode that is linear (CS << 4) + ((inst_next - (CS << 4) + disp) & 0xFFFF), using realModeCS
+# when it is known. In 16-bit protected mode a selector's offsets fill one 64K page of the address space.
 rel8: reloc is simm8        [ reloc=inst_next+simm8; ] { export *[ram]:$(SIZE) reloc; }
+rel8: reloc is protectedMode=0 & simm8 [ reloc=(realModeCS << 4) + ((inst_next - (realModeCS << 4) + simm8) & 0xFFFF); ] { export *[ram]:$(SIZE) reloc; }
+rel8: reloc is protectedMode=0 & realModeCS=0 & simm8 [ reloc=inst_next+simm8; ] { export *[ram]:$(SIZE) reloc; }
+rel8: reloc is protectedMode=1 & simm8 [ reloc=((inst_next >> 16) << 16) | ((inst_next + simm8) & 0xFFFF); ] { export *[ram]:$(SIZE) reloc; }
 rel16: reloc is simm16      [ reloc=((inst_next >> 16) << 16) | ((inst_next + simm16) & 0xFFFF); ] { export *[ram]:$(SIZE) reloc; }
+rel16: reloc is protectedMode=0 & simm16 [ reloc=(realModeCS << 4) + ((inst_next - (realModeCS << 4) + simm16) & 0xFFFF); ] { export *[ram]:$(SIZE) reloc; }
+rel16: reloc is protectedMode=0 & realModeCS=0 & simm16 [ reloc=((inst_next >> 16) << 16) | ((inst_next + simm16) & 0xFFFF); ] { export *[ram]:$(SIZE) reloc; }
 rel32: reloc is simm32      [ reloc=inst_next+simm32; ] { export *[ram]:$(SIZE) reloc; }
 
 
