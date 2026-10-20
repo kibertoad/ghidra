@@ -446,6 +446,8 @@ public class MzLoader extends AbstractLibrarySupportLoader {
 		Register sp = context.getRegister("sp");
 		Register ds = context.getRegister("ds");
 		Register cs = context.getRegister("cs");
+		// The disassembler reads CS from this context field to compute near relative targets
+		Register realModeCs = context.getRegister("realModeCS");
 
 		try {
 			context.setValue(sp, entry.getAddress(), entry.getAddress(),
@@ -466,6 +468,9 @@ public class MzLoader extends AbstractLibrarySupportLoader {
 						.valueOf(Integer.toUnsignedLong(((SegmentedAddress) start).getSegment()));
 				
 				context.setValue(cs, start, end, csValue);
+				if (realModeCs != null) {
+					context.setValue(realModeCs, start, end, csValue);
+				}
 				if (shouldSetDS) {
 					context.setValue(ds, start, end, BigInteger.valueOf(dsValue));
 				}
